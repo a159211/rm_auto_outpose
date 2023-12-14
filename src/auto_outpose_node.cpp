@@ -1,8 +1,7 @@
-
 #include"rm_auto_outpose/auto_outpose_node.hpp"
 #include <cv_bridge/cv_bridge.h>
 
-namespace rm_auto_aim
+namespace rm_auto_outpose
 {
 
 AutoOutposeNode::AutoOutposeNode(const rclcpp::NodeOptions & options)
@@ -50,7 +49,7 @@ double AutoOutposeNode::get_next_x(double now_x){
     return angle_next * 0.553;
 }
 
-cv::Point3f xyz_transformation(cv::Point3f input_point){        //坐标系转换  相机坐标系-->绝对坐标系  (shang z  qian y  you x)
+cv::Point3f AutoOutposeNode::xyz_transformation(cv::Point3f input_point){        //坐标系转换  相机坐标系-->绝对坐标系  (shang z  qian y  you x)
 
     cv::Point3f temppoint(input_point.x,input_point.z,-input_point.y);
     double matrix_A[1][4] = {temppoint.x, temppoint.y, temppoint.z, 1};
@@ -59,7 +58,7 @@ cv::Point3f xyz_transformation(cv::Point3f input_point){        //坐标系转�
                              {0     , 0       , 1    , 0},
                              {0.0868, -0.07905, 0.388, 0}};
 
-    double matrix_target[1][4];
+    double matrix_target[1][4] = {0};
 
     for(int i=0;i<4;i++){
         for(int j=0;j<4;j++){
@@ -180,4 +179,4 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
 // Register the component with class_loader.
 // This acts as a sort of entry point, allowing the component to be discoverable when its library
 // is being loaded into a running process.
-RCLCPP_COMPONENTS_REGISTER_NODE(rm_auto_aim::AutoOutposeNode)
+RCLCPP_COMPONENTS_REGISTER_NODE(rm_auto_outpose::AutoOutposeNode)

@@ -14,7 +14,7 @@
 #include <image_transport/image_transport.hpp>
 #include <image_transport/publisher.hpp>
 
-namespace rm_auto_aim
+namespace rm_auto_outpose
 {
 
 
@@ -29,6 +29,8 @@ private:
     double get_next_x(double now_x);
 
     void GetTargerAngle(const cv::Point3f armor_center);
+
+    cv::Point3f xyz_transformation(cv::Point3f input_point);
 
     void OutposeCallback(const auto_aim_interfaces::msg::Armors outpose_info);
 

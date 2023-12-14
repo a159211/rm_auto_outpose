@@ -2,7 +2,7 @@
 
 #define g 9.8
 
-namespace rm_auto_aim
+namespace rm_auto_outpose
 {
 
 // Bulletmodel::Bulletmodel(double v0,const cv::Point3f center_armor) {

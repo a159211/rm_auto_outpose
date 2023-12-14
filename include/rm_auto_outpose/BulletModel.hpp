@@ -4,7 +4,7 @@
 #include <iostream>
 #include "opencv2/opencv.hpp"
 
-namespace rm_auto_aim
+namespace rm_auto_outpose
 {
 class Bulletmodel {
 public:
