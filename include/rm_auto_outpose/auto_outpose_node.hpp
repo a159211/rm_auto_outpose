@@ -4,6 +4,7 @@
 
 #include"rclcpp/rclcpp.hpp"
 #include"auto_aim_interfaces/msg/armors.hpp"
+#include"auto_aim_interfaces/msg/armor.hpp"
 #include <sensor_msgs/msg/image.hpp>
 #include"opencv2/opencv.hpp"
 #include"auto_aim_interfaces/msg/outpose.hpp"
@@ -17,16 +18,21 @@
 namespace rm_auto_outpose
 {
 
+enum class ArmorsNum { NORMAL_4 = 4, BALANCE_2 = 2, OUTPOST_3 = 3 };
 
 class AutoOutposeNode : public rclcpp::Node
 {
 public:
+
+    using Armor = auto_aim_interfaces::msg::Armor;
 
     AutoOutposeNode(const rclcpp::NodeOptions & options);
 
 private:
 
     double get_next_x(double now_x);
+
+    void updateArmorsNum(const Armor & armor);
 
     void GetTargerAngle(const cv::Point3f armor_center);
 
@@ -57,6 +63,8 @@ private:
 
     double gun_yaw_ = 0;
     double gun_pitch_ = 0;
+
+    ArmorsNum armors_num_;
 
 };
 

@@ -34,6 +34,17 @@ void AutoOutposeNode::GetTargerAngle(const cv::Point3f armor_center){
 
 }
 
+void AutoOutposeNode::updateArmorsNum(const Armor & armor)
+{
+  if (armor.type == "large" && (armor.number == "3" || armor.number == "4" || armor.number == "5")) {
+    armors_num_ = ArmorsNum::BALANCE_2;
+  } else if (armor.number == "outpost") {
+    armors_num_ = ArmorsNum::OUTPOST_3;
+  } else {
+    armors_num_ = ArmorsNum::NORMAL_4;
+  }
+}
+
 double AutoOutposeNode::get_next_x(double now_x){
 
     double angle_now = asin(now_x/0.553);  //弧度
@@ -80,6 +91,8 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
 
     for(auto outpose_armor : outpose_info.armors)
     {
+        updateArmorsNum(outpose_armor);
+
         cv::Point3f armor_point_camera(outpose_armor.pose.position.x,outpose_armor.pose.position.y,outpose_armor.pose.position.z);
 
         cv::Point3f armor_point_tf = xyz_transformation(armor_point_camera);
@@ -92,6 +105,8 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
         // std::cout<<"yaw_:"<<yaw_<<std::endl;
         // std::cout<<"pitch_:"<<pitch_<<std::endl;
 
+        data.id = outpose_armor.number;
+        data.armors_num = static_cast<int>(armors_num_);
         data.yaw = yaw_ + gun_yaw_;
         data.pitch = pitch_;
 
