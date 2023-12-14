@@ -115,7 +115,6 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
             Isfind_First = false;
 
             data.tracking = true;
-
             msg_int32.data = 1;
 
             RCLCPP_INFO(this->get_logger(), "第一次找到合适的角度,并调好枪口"); 
@@ -124,6 +123,7 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
 
     end = this->now().seconds()*1000;
     double elapsed_ms = end - start;  //ms
+    data.v_yaw = elapsed_ms;
 
     if( abs(T-elapsed_ms) <= 150 && ! Isfind_First )
     {
