@@ -14,6 +14,7 @@
 #include"auto_aim_interfaces/msg/outpose_receive.hpp"
 #include <image_transport/image_transport.hpp>
 #include <image_transport/publisher.hpp>
+#include<chrono>
 
 namespace rm_auto_outpose
 {
@@ -53,9 +54,9 @@ private:
     bool time_up = false;
     bool Isfind_First = true;
     bool IsShut = false;
-    double start;
-    double start_temp;
-    double end;
+    std::chrono::steady_clock::time_point start;
+    std::chrono::steady_clock::time_point start_temp;
+    std::chrono::steady_clock::time_point end;
     Bulletmodel * bulletmodel;
     double yaw_;
     double pitch_;

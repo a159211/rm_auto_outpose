@@ -111,7 +111,7 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
         data.pitch = pitch_;
 
         if( abs(yaw_) <= 2.5 && Isfind_First){         //调枪口
-            start = this->now().seconds()*1000;
+            start = std::chrono::steady_clock::now();
             Isfind_First = false;
 
             data.tracking = true;
@@ -121,14 +121,15 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
         }
     }
 
-    end = this->now().seconds()*1000;
-    double elapsed_ms = end - start;  //ms
+    end = std::chrono::steady_clock::now();
+    double elapsed_ms = std::chrono::duration_cast<std::chrono::microseconds>(end-start).count()/1000;  //ms
+    // std::cout<<"elapsed_ms:"<<elapsed_ms<<std::endl;
     data.v_yaw = elapsed_ms;
 
-    if( abs(T-elapsed_ms) <= 150 && ! Isfind_First )
+    if( abs(T-elapsed_ms) <= 100 && ! Isfind_First )
     {
-        if( abs(T-elapsed_ms) <= 15 ){
-            start_temp = this->now().seconds()*1000;
+        if( abs(T-elapsed_ms) <= 20 ){
+            start_temp = std::chrono::steady_clock::now();
         }
 
         time_up = true;
@@ -141,8 +142,9 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
         }
     }
 
-    if( time_up && abs(T-elapsed_ms) > 150 ){  //判断时间内循环结束
+    if( time_up && abs(T-elapsed_ms) > 100 ){  //判断时间内循环结束
         time_up = false;
+
         start = start_temp;
 
         if(!have_find){
@@ -177,6 +179,9 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
     }
 
     if( elapsed_ms >= 4000 && !Isfind_First ){
+
+        std::cout<<elapsed_ms<<std::endl;
+
         Isfind_First = true;
         IsShut = false;
         RCLCPP_INFO(this->get_logger(), "时间未读取到规定周期"); 
