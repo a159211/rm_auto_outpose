@@ -9,7 +9,6 @@ AutoOutposeNode::AutoOutposeNode(const rclcpp::NodeOptions & options)
 {
     RCLCPP_INFO(this->get_logger(), "Starting AutoOutposeNode!");
 
-    temp_pub = this->create_publisher<std_msgs::msg::UInt32>("/outpose_bool",rclcpp::SensorDataQoS());
     outpose_target_pub = this->create_publisher<auto_aim_interfaces::msg::Target>("/tracker/target",rclcpp::SensorDataQoS());
 
     outpose_sub_ = this->create_subscription<auto_aim_interfaces::msg::Armors>
@@ -23,13 +22,23 @@ AutoOutposeNode::AutoOutposeNode(const rclcpp::NodeOptions & options)
     });
 }
 
-void AutoOutposeNode::GetTargerAngle(const cv::Point3f armor_center){
+void AutoOutposeNode::GetTargerAngle(const cv::Point3f armor_center,const double yaw_rvec){
 
-    bulletmodel = new Bulletmodel(this->shot_v,armor_center);
+    cv::Point3f outpose_center(armor_center.x+outpose_R*sin(yaw_rvec),armor_center.y+outpose_R*cos(yaw_rvec),armor_center.z);
 
-    double yaw = asin(armor_center.x / sqrt(armor_center.x*armor_center.x+armor_center.y*armor_center.y)) * 180 / CV_PI ;  
-    double pitch = bulletmodel->get_angle() * 180 / CV_PI;    //加了弹道补偿
-    this->yaw_ = yaw;
+    double K = sqrt( outpose_center.x*outpose_center.x+outpose_center.y*outpose_center.y ) / sqrt( outpose_center.x*outpose_center.x+(outpose_center.y-outpose_R)*(outpose_center.y-outpose_R) );
+
+    cv::Point3f hit_center(outpose_center.x/K , outpose_center.y/K , outpose_center.z);
+
+    bulletmodel = new Bulletmodel(this->shot_v,hit_center);
+
+    double yaw = -asin(armor_center.x / sqrt(armor_center.x*armor_center.x+armor_center.y*armor_center.y)) * 180 / CV_PI;  
+    double pitch = -bulletmodel->get_angle() * 180 / CV_PI;    //加了弹道补偿
+
+    double yaw_To_outpose_center = -asin(hit_center.x / sqrt(hit_center.x*hit_center.x+hit_center.y*hit_center.y)) * 180 / CV_PI;
+
+    this->yaw_temp_ = yaw;
+    this->yaw_ = yaw_To_outpose_center;
     this->pitch_ = pitch;
 
 }
@@ -45,19 +54,33 @@ void AutoOutposeNode::updateArmorsNum(const Armor & armor)
   }
 }
 
-double AutoOutposeNode::get_next_x(double now_x){
+bool AutoOutposeNode::predicte(const cv::Point3f armor_center,const double yaw_rvec){
 
-    double angle_now = asin(now_x/0.553);  //弧度
-    double angle_next;
-    if(angle_last - yaw_ <= 0){    //逆时针
-        angle_next = angle_now - 0.4 * 2 * CV_PI * bulletmodel->t_;
+    if(rotation_D_ == 0){                   //逆
+        next_x_Tocenter = sin( yaw_rvec + 0.8 * CV_PI ) * outpose_R + armor_center.x;
     }
-    else{           //顺时针
-        angle_next = angle_now + 0.4 * 2 * CV_PI * bulletmodel->t_;
+    else if(rotation_D_ == 1){              //顺
+        next_x_Tocenter = sin( yaw_rvec - 0.8 * CV_PI ) * outpose_R + armor_center.x;
     }
-    angle_last = yaw_;
+    else{
+        return false;
+    }
+
+    return true;
+}
+
+void AutoOutposeNode::rotation_direation(){
+    double sum_x = 0;
+    for(int i=0;i<15;i++){
+        sum_x += v_armor_x[v_armor_x.size()-16+i];
+    }
+    if(v_armor_x[v_armor_x.size()-1]> (sum_x/15) ){
+        rotation_D_ = 0;
+    }
+    else{
+        rotation_D_ = 1;
+    }
     
-    return angle_next * 0.553;
 }
 
 cv::Point3f AutoOutposeNode::xyz_transformation(cv::Point3f input_point){        //坐标系转换  相机坐标系-->绝对坐标系  (shang z  qian y  you x)
@@ -67,7 +90,7 @@ cv::Point3f AutoOutposeNode::xyz_transformation(cv::Point3f input_point){       
     double matrix_T[4][4] = {{1     , 0       , 0    , 0},
                              {0     , 1       , 0    , 0},
                              {0     , 0       , 1    , 0},
-                             {0.0868, -0.07905, 0.388, 0}};
+                             {0.08675, -0.10254, 0.2216, 1}};
 
     double matrix_target[1][4] = {0};
 
@@ -80,14 +103,19 @@ cv::Point3f AutoOutposeNode::xyz_transformation(cv::Point3f input_point){       
     return cv::Point3f(matrix_target[0][0],matrix_target[0][1],matrix_target[0][2]);
 }
 
+void AutoOutposeNode::Init(auto_aim_interfaces::msg::Target & data){
+    data.tracking = false;
+    data.shootstatus = false;
+    yaw_ = 1000;
+    yaw_temp_ = 1000;
+    next_x_Tocenter = 1000;
+}
+
 void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors outpose_info)
 {
     auto_aim_interfaces::msg::Target data;
-    data.tracking = false;
-    data.shootstatus = false;
-    double x_next = 1000;
 
-    std_msgs::msg::UInt32 msg_int32;
+    Init(data);
 
     for(auto outpose_armor : outpose_info.armors)
     {
@@ -97,36 +125,50 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
 
         cv::Point3f armor_point_tf = xyz_transformation(armor_point_camera);
 
-        GetTargerAngle(armor_point_tf);
+        GetTargerAngle(armor_point_tf,outpose_armor.yaw_r);
 
-        x_next = get_next_x(armor_point_tf.x);
+        predicte(armor_point_tf,outpose_armor.yaw_r);
 
-        // std::cout<<"x_next:"<<x_next<<std::endl;
-        // std::cout<<"yaw_:"<<yaw_<<std::endl;
-        // std::cout<<"pitch_:"<<pitch_<<std::endl;
+        std::cout<<"next_x_Tocenter:"<<next_x_Tocenter<<std::endl;
+        if(rotation_D_==1){
+            std::cout<<"顺时针"<<std::endl;
+        }
+        else if(rotation_D_==0){
+            std::cout<<"逆时针"<<std::endl;
+        }
+
+        v_armor_x.push_back(armor_point_tf.x);
 
         data.id = outpose_armor.number;
         data.armors_num = static_cast<int>(armors_num_);
-        data.yaw = yaw_ + gun_yaw_;
+        data.yaw =  yaw_ + gun_yaw_;
         data.pitch = pitch_;
 
-        if( abs(yaw_) <= 2.5 && Isfind_First){         //调枪口
-            start = std::chrono::steady_clock::now();
+        if(Isfind_First){         //调枪口
             Isfind_First = false;
+            rotation_D_ = -1;
 
             data.tracking = true;
-            msg_int32.data = 1;
 
             RCLCPP_INFO(this->get_logger(), "第一次找到合适的角度,并调好枪口"); 
         }
     }
 
+    if( abs(yaw_temp_) <= 6 && !Isfind_First && first_shot ){  //first shot
+        RCLCPP_INFO(this->get_logger(), "first shot"); 
+        start = std::chrono::steady_clock::now();
+        IsShut = true;
+        first_shot = false;
+
+        rotation_direation();
+        v_armor_x.clear();
+    }
+
     end = std::chrono::steady_clock::now();
     double elapsed_ms = std::chrono::duration_cast<std::chrono::microseconds>(end-start).count()/1000;  //ms
     // std::cout<<"elapsed_ms:"<<elapsed_ms<<std::endl;
-    data.v_yaw = elapsed_ms;
 
-    if( abs(T-elapsed_ms) <= 100 && ! Isfind_First )
+    if( abs(T-elapsed_ms) <= 100 && !Isfind_First && !first_shot)
     {
         if( abs(T-elapsed_ms) <= 20 ){
             start_temp = std::chrono::steady_clock::now();
@@ -134,8 +176,7 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
 
         time_up = true;
 
-
-        if( abs(yaw_) <= 4 &&  x_next <= 0.1 && !have_find){  //找到可射击装甲板
+        if( abs(yaw_temp_) <= 8 && !have_find  && abs(next_x_Tocenter) <= 0.1){  //找到可射击装甲板
             IsShut = true;
             have_find = true;
             n=0;
@@ -158,6 +199,7 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
     if(n>=2){
         RCLCPP_INFO(this->get_logger(), "累积%d次过了固定周期未找到角度合适装甲板,重新选取开始时间",n); 
         Isfind_First = true;
+        first_shot = true;
         IsShut = false;
         n=0;
     }
@@ -168,26 +210,21 @@ void AutoOutposeNode::OutposeCallback(const auto_aim_interfaces::msg::Armors out
         n=0;
 
         data.shootstatus = true;
-
         Isfind_First = false;
 
+        
         RCLCPP_INFO(this->get_logger(), "data.yaw:%f",data.yaw); 
         RCLCPP_INFO(this->get_logger(), "data.pitch:%f",data.pitch); 
 
-        msg_int32.data = 2;
-
     }
 
-    if( elapsed_ms >= 4000 && !Isfind_First ){
-
-        std::cout<<elapsed_ms<<std::endl;
-
+    if( elapsed_ms >= 4000 && !Isfind_First && !first_shot){
+        first_shot = true;
         Isfind_First = true;
         IsShut = false;
         RCLCPP_INFO(this->get_logger(), "时间未读取到规定周期"); 
     }
   
-    temp_pub->publish(msg_int32);
     outpose_target_pub->publish(data);
 }
 
