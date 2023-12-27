@@ -13,6 +13,7 @@
 #include"std_msgs/msg/u_int32.hpp"
 #include"rm_auto_outpose/BulletModel.hpp"
 #include"auto_aim_interfaces/msg/target.hpp"
+#include"auto_aim_interfaces/msg/debug_outpose.hpp"
 #include"auto_aim_interfaces/msg/outpose_receive.hpp"
 #include <image_transport/image_transport.hpp>
 #include <image_transport/publisher.hpp>
@@ -53,6 +54,8 @@ private:
     rclcpp::Subscription<auto_aim_interfaces::msg::OutposeReceive>::SharedPtr serial_sub;
 
     rclcpp::Publisher<auto_aim_interfaces::msg::Target>::SharedPtr outpose_target_pub;
+
+    rclcpp::Publisher<auto_aim_interfaces::msg::DebugOutpose>::SharedPtr debug_outpose_pub;
 
     std::vector<double> v_armor_x;
 
